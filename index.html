@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bàn tính Soroban (kiểu Nhật) – Click để gẩy hạt</title>
+  <style>
+    :root{
+      --frame:#d1d5db;        /* khung xám nhạt */
+      --bar:#9ca3af;          /* thanh ngang xám */
+      --upper:#f87171;        /* hạt 5 đỏ nhạt */
+      --lower:#6ee7b7;        /* hạt 1 xanh pastel */
+      --rod:#9ca3af;          /* trục nhạt */
+      --bg:#ffffff;           /* nền trắng */
+      --text:#111827;         /* chữ đen xanh */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif; 
+      background:#fafafa;
+      color:var(--text);
+      display:flex; flex-direction:column; align-items:center; gap:14px; padding:14px;
+    }
+
+    .wrap{width:min(1200px, 96vw)}
+    .panel{display:flex; gap:10px; align-items:center; justify-content:space-between}
+    .pill{border:1px solid #374151; padding:8px 12px; border-radius:999px; font-weight:600}
+    .btn{cursor:pointer; user-select:none}
+    .btn:hover{filter:brightness(1.08)}
+
+    .value{font-variant-numeric:tabular-nums; font-weight:800; font-size: clamp(20px, 4vw, 36px)}
+
+    /* ===== Soroban ===== */
+    .frame{
+      position:relative; width:100%; aspect-ratio: 20 / 7; /* responsive */
+      --background:linear-gradient(#0e142c,#0b1020);
+      border:10px solid var(--frame); border-radius:22px; box-shadow:0 12px 40px rgba(0,0,0,.35) inset;
+      overflow:hidden; padding:10px 16px;
+    }
+    .bar{position:absolute; left:0; right:0; top:45%; height:5px; background:linear-gradient(#263143,#0f172a); box-shadow:0 2px 0 rgba(0,0,0,.35) inset}
+
+    .rods{position:absolute; inset:12px 16px; display:grid; grid-template-columns:repeat(var(--cols), 1fr)}
+
+    .rod{position:relative}
+    .rod::before{content:""; position:absolute; top:0; bottom:0; left:50%; width:6px; transform:translateX(-50%); background:linear-gradient(#9aa3b2,#6b7280); border-radius:3px; opacity:.9}
+
+    /* bead base */
+    .bead{position:absolute; left:50%; transform:translateX(-50%); width: clamp(28px, 4.8vw, 48px); height: clamp(18px, 3vw, 34px); border-radius:999px; 
+      display:flex; align-items:center; justify-content:center; color:#000; font-weight:700; text-shadow:0 1px 0 rgba(255,255,255,.25); cursor:pointer;
+      filter:drop-shadow(0 3px 2px rgba(0,0,0,.25));
+      transition: top .18s ease, bottom .18s ease, transform .18s ease;
+      user-select:none
+    }
+    .upper{background:linear-gradient(#f87171,#ef4444); border:1px solid #dc2626}
+    .lower{background:linear-gradient(#34d399,#10b981); border:1px solid #059669}
+
+    /* positions relative to the bar */
+    .rod[data-upper="0"] .upper{ top: calc(5%)}           /* upper bead up (off) */
+    .rod[data-upper="1"] .upper{ top: calc(32%)}           /* touch bar (on) */
+
+    /* 4 lower beads: from bottom going up we activate k beads to the bar */
+    .rod .lower.l4{ bottom: calc(0%) }
+    .rod .lower.l3{ bottom: calc(0% + 1.1 * var(--gap)) }
+    .rod .lower.l2{ bottom: calc(0% + 2.2 * var(--gap)) }
+    .rod .lower.l1{ bottom: calc(0% + 3.3 * var(--gap)) }
+
+    /* when active, k beads are lifted to just under the bar */
+    .rod[data-lower="0"] .lower{ transform:translate(-50%, 0)}
+    .rod[data-lower="1"] .lower.l1{ bottom: calc(6% + calc(6px + 3.3 * var(--gap))) }
+    .rod[data-lower="2"] .lower.l1{ bottom: calc(6% + calc(6px + 3.3 * var(--gap))) }
+    .rod[data-lower="2"] .lower.l2{ bottom: calc(6% + calc(6px + 2.2 * var(--gap))) }
+    .rod[data-lower="3"] .lower.l1{ bottom: calc(6% + calc(6px + 3.3 * var(--gap))) }
+    .rod[data-lower="3"] .lower.l2{ bottom: calc(6% + calc(6px + 2.2 * var(--gap))) }
+    .rod[data-lower="3"] .lower.l3{ bottom: calc(6% + calc(6px + 1.1 * var(--gap))) }
+    .rod[data-lower="4"] .lower.l1{ bottom: calc(6% + calc(6px + 3.3 * var(--gap))) }
+    .rod[data-lower="4"] .lower.l3{ bottom: calc(6% + calc(6px + 1.1 * var(--gap))) }
+    .rod[data-lower="4"] .lower.l2{ bottom: calc(6% + calc(6px + 2.2 * var(--gap))) }
+    .rod[data-lower="4"] .lower.l4{ bottom: calc(6% + 6px) }
+    /* .rod[data-lower="3"] .lower.l1,.rod[data-lower="3"] .lower.l2,.rod[data-lower="3"] .lower.l3{ bottom: calc(45% + 6px) } */
+    /* .rod[data-lower="4"] .lower.l1,.rod[data-lower="4"] .lower.l2,.rod[data-lower="4"] .lower.l3,.rod[data-lower="4"] .lower.l4{ bottom: calc(45% + 6px) } */
+
+    /* labels */
+    .labels{display:grid; grid-template-columns:repeat(var(--cols), 1fr); gap:0; padding-top:10px; text-align:center; font-size: clamp(10px, 2.4vw, 14px); opacity:.9}
+    .labels span{white-space:nowrap}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <div class="pill">Bàn tính <strong>Soroban 1:4</strong> (click để gẩy hạt)</div>
+      <div class="value" id="value">0</div>
+      <div>
+        <button class="pill btn" id="clear">Đặt về 0</button>
+        <button class="pill btn" id="random">Ngẫu nhiên</button>
+      </div>
+    </div>
+
+    <div class="frame" id="frame">
+      <div class="bar"></div>
+      <div class="rods" id="rods"></div>
+    </div>
+
+    <div class="labels" id="labels"></div>
+  </div>
+
+  <script>
+  /* ===== Soroban logic (1 upper, 4 lower per cột) ===== */
+  const COLS = 7;                       // số cột (đơn vị → nghìn tỷ)
+  const GAP = 34;                        // khoảng cách dọc giữa các hạt ở deck dưới (px) – sẽ quy đổi
+  const rodsEl = document.getElementById('rods');
+  const labelsEl = document.getElementById('labels');
+  const valueEl = document.getElementById('value');
+
+  // responsive gap theo kích thước khung
+  function computeGap(){
+    const rect = document.getElementById('frame').getBoundingClientRect();
+    const beadH = Math.max(18, Math.min(34, rect.width * 0.03));
+    return beadH * 1.05; // khoảng trống dọc tương đối
+  }
+
+  // Nhãn theo hàng (VN)
+  let placeNames = [
+    'đơn vị','chục','trăm','nghìn','chục nghìn','trăm nghìn','triệu',
+    'chục triệu','trăm triệu','tỷ','chục tỷ','trăm tỷ','nghìn tỷ'
+  ];
+  placeNames = placeNames.slice(0, COLS); // lấy đúng số cột
+//   console.log(placeNames);
+  placeNames = placeNames.reverse(); // đảo để dùng dễ hơn
+
+  // Trạng thái mỗi cột: upper (0/1) + lower (0..4)
+  const state = Array.from({length: COLS}, () => ({upper:0, lower:0}));
+
+  // Vẽ cột
+  function render(){
+    const gap = computeGap();
+    document.querySelector(':root').style.setProperty('--cols', COLS);
+    document.querySelector(':root').style.setProperty('--gap', gap + 'px');
+
+    rodsEl.innerHTML = '';
+    labelsEl.innerHTML = '';
+
+    for(let i=COLS-1;i>=0;i--){ // vẽ từ trái → phải: cột lớn ở bên trái
+      const rod = document.createElement('div');
+      rod.className = 'rod';
+      rod.dataset.upper = state[i].upper;
+      rod.dataset.lower = state[i].lower;
+
+      // upper bead (giá trị 5)
+      const upper = document.createElement('div');
+      upper.className = 'bead upper';
+      upper.title = 'Hạt trên (5) – bấm để bật/tắt';
+      upper.addEventListener('click', () => {
+        state[i].upper = state[i].upper ? 0 : 1;
+        updateRod(rod,i);
+      });
+
+      // 4 lower beads (1..4)
+      const lowers = [];
+      for(let k=1;k<=4;k++){
+        const b = document.createElement('div');
+        b.className = `bead lower l${k}`;
+        b.title = 'Hạt dưới (1) – bấm để đặt số 0..4';
+        b.addEventListener('click', () => {
+          // đặt lower = k (nếu đang bằng k thì về 0)
+        //   alert(k);
+        //   alert(state[i].lower);
+          const kValue = k;
+          const stateIValue = state[i].lower;
+          if (kValue <= stateIValue) {
+            // alert('giam ' + state[i].lower + ' - ' + k);
+            const j = stateIValue - k + 1;
+            // if (kValue === stateIValue) {
+            //   state[i].lower = 0;
+            // } else {
+              state[i].lower = state[i].lower - j;
+            // }
+            
+          } else {
+            // alert('tang');
+            state[i].lower = (state[i].lower === k) ? 0 : k;
+          }
+          
+          updateRod(rod,i);
+        });
+        lowers.push(b);
+      }
+
+      rod.appendChild(upper);
+      lowers.forEach(b=>rod.appendChild(b));
+      rodsEl.appendChild(rod);
+
+      // label
+      const lb = document.createElement('span');
+      lb.textContent = placeNames[COLS-1-i] || '';
+      labelsEl.appendChild(lb);
+    }
+
+    updateTotal();
+  }
+
+  function updateRod(rod, idx){
+    rod.dataset.upper = state[idx].upper;
+    rod.dataset.lower = state[idx].lower;
+    updateTotal();
+  }
+
+  function updateTotal(){
+    // trị số mỗi cột = upper*5 + lower
+    const digits = state.map(s=> s.upper*5 + s.lower);
+    // chuyển thành số lớn (string) theo vị trí
+    let out = '0';
+    // digits[0] là đơn vị (state[0]) – chúng ta in từ cột lớn nhất về nhỏ nhất
+    const trimmed = [...digits].reverse();
+    // validate mỗi cột không vượt 9 (Soroban 1:4 cho phép 0..9)
+    trimmed.forEach((d, i) => { if(d>9){ trimmed[i]=9; }});
+    // ghép thành chuỗi, bỏ leading zeros
+    out = trimmed.join('').replace(/^0+(\d)/, '$1');
+    if(/^0+$/.test(out)) out = '0';
+    valueEl.textContent = out.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+
+  // Nút chức năng
+  document.getElementById('clear').addEventListener('click', ()=>{
+    state.forEach(s=>{s.upper=0; s.lower=0});
+    document.querySelectorAll('.rod').forEach((rod,idx)=>{updateRod(rod, COLS-1-idx)});
+    updateTotal();
+  });
+
+  document.getElementById('random').addEventListener('click', ()=>{
+    state.forEach(s=>{ s.upper = Math.random()>.5?1:0; s.lower = Math.floor(Math.random()*5)});
+    // chuẩn hóa để không vượt 9 (upper*5 + lower <= 9)
+    state.forEach(s=>{ if(s.upper===1 && s.lower>4) s.lower=4; if(s.upper===1 && s.lower>4) s.lower=4; if(s.upper===1 && s.lower>4) s.lower=4; if(s.upper===1 && s.lower>4) s.lower=4; if(s.upper===1 && s.lower>4) s.lower=4; if(s.upper===1 && s.lower>4) s.lower=4; if(s.upper===1 && s.lower>4) s.lower=4; if(s.upper===1 && s.lower>4) s.lower=4; });
+    render();
+  });
+
+  // Khởi tạo
+  window.addEventListener('resize', ()=>{
+    // cập nhật gap khi khung thay đổi
+    render();
+  });
+  render();
+  </script>
+</body>
+</html>
